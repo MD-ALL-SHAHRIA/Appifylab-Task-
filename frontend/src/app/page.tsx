@@ -1,9 +1,7 @@
 import AuthLayout from "@/components/auth/AuthLayout";
 import LoginForm from "@/components/login/LoginForm";
 
-export default function Home() 
-
-{
+export default function Home() {
   return (
     <AuthLayout
       heroImage={{
@@ -13,7 +11,6 @@ export default function Home()
         height: 1240,
         imageClassName: "max-w-full lg:max-w-[633px] w-auto h-auto",
       }}
-
 
       header={{
         subtitle: "Welcome back",
@@ -29,11 +26,8 @@ export default function Home()
         linkText: "Create New Account",
         href: "/registration",
       }}
-
     >
-      <LoginForm/>
-      </AuthLayout>
-
-
+      <LoginForm />
+    </AuthLayout>
   );
 }
