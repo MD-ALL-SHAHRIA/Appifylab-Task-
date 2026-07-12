@@ -27,9 +27,8 @@ export default function RegistrationPage()
         linkText: "Login",
         href: "/",
       }}
-
     >
       <RegistrationForm />
-      </AuthLayout>
+    </AuthLayout>
   );
 }
