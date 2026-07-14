@@ -18,7 +18,8 @@ export const metadata: Metadata = {
 };
 
 import { ThemeProvider } from "./providers";
-
+import ProviderWrapper from "@/components/providers/ProviderWrapper";
+import { Toaster } from 'react-hot-toast';
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -47,7 +48,10 @@ export default function RootLayout({
           enableSystem={false}
           disableTransitionOnChange
         >
-          {children}
+          <ProviderWrapper>
+            {children}
+            <Toaster />
+          </ProviderWrapper>
         </ThemeProvider>
       </body>
     </html>

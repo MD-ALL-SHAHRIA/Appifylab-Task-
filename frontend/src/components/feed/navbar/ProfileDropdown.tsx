@@ -8,26 +8,29 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useSession, signOut } from "next-auth/react";
 
-export default function ProfileDropdown() 
+export default function ProfileDropdown() {
+  const { data: session } = useSession();
+  
+  const firstName = session?.user?.firstName || "User";
+  const lastName = session?.user?.lastName || "";
+  const fullName = `${firstName} ${lastName}`.trim();
+  const initials = firstName.charAt(0) + (lastName ? lastName.charAt(0) : "");
 
-
-{
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="flex items-center relative cursor-pointer outline-none bg-transparent border-none">
         <div className="mr-[8px] w-[24px]">
           <Avatar className="w-[24px] h-[24px]">
             <AvatarImage src="/assets/images/profile.png" alt="Profile" />
-            <AvatarFallback>DF</AvatarFallback>
+            <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
         </div>
 
-
-
         <div className="flex items-center cursor-pointer text-gray-800 dark:text-white/60">
           <p className="m-0 font-normal text-[16px] leading-[24px]">
-            Dylan Field
+            {fullName}
           </p>
           <div className="bg-transparent border border-transparent p-0 ml-1 outline-none">
             <svg
@@ -46,8 +49,6 @@ export default function ProfileDropdown()
         </div>
       </DropdownMenuTrigger>
 
-
-
       <DropdownMenuContent
         side="bottom"
         align="end"
@@ -58,14 +59,12 @@ export default function ProfileDropdown()
           <div className="shrink-0">
             <Avatar className="w-[48px] h-[48px]">
               <AvatarImage src="/assets/images/profile.png" alt="Profile" />
-              <AvatarFallback>DF</AvatarFallback>
+              <AvatarFallback>{initials}</AvatarFallback>
             </Avatar>
           </div>
           <div>
             <h4 className="text-lg font-semibold m-0 text-gray-900 dark:text-white">
-
-              
-              Dylan Field
+              {fullName}
             </h4>
             <Link
               href="/profile"
@@ -166,8 +165,8 @@ export default function ProfileDropdown()
           </DropdownMenuItem>
 
           <DropdownMenuItem className="p-0">
-            <Link
-              href="#0"
+            <button
+              onClick={() => signOut()}
               className="flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-[#192D43] transition-colors w-full cursor-pointer border-b border-gray-100 dark:border-[#384F68] last:border-none rounded-none focus:bg-gray-50 dark:focus:bg-[#192D43] outline-none"
             >
               <div className="flex items-center gap-3 font-medium text-gray-700 dark:text-white/60">
@@ -204,7 +203,7 @@ export default function ProfileDropdown()
                   />
                 </svg>
               </div>
-            </Link>
+            </button>
           </DropdownMenuItem>
         </ul>
       </DropdownMenuContent>

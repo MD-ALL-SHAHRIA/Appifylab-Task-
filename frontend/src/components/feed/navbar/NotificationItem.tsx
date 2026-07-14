@@ -9,6 +9,7 @@ interface NotificationItemProps
   timeText: string;
   isUnread?: boolean;
   children: React.ReactNode;
+  onClick?: () => void;
 }
 
 export default function NotificationItem({
@@ -18,9 +19,10 @@ export default function NotificationItem({
   timeText,
   isUnread = false,
   children,
+  onClick,
 }: NotificationItemProps) {
   return (
-    <div className="flex items-start gap-4 p-4 hover:bg-gray-50 dark:hover:bg-[#192D43] transition-colors cursor-pointer border-b border-gray-50 dark:border-[#384F68]">
+    <div onClick={onClick} className="flex items-start gap-4 p-4 hover:bg-gray-50 dark:hover:bg-[#192D43] transition-colors cursor-pointer border-b border-gray-50 dark:border-[#384F68]">
       <div className="shrink-0">
         <Avatar className="w-[48px] h-[48px]">
           <AvatarImage src={imageSrc} alt={imageAlt} />

@@ -1,3 +1,4 @@
+"use client";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -6,11 +7,114 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Post, Comment } from "@/types";
+import { formatDistanceToNow } from "date-fns";
+import { useState, useEffect } from "react";
+import { useLikePostMutation, useCreateCommentMutation, useUpdatePostMutation, useDeletePostMutation } from "@/lib/redux/apiSlice";
+import { useSession } from "next-auth/react";
+import toast from "react-hot-toast";
+import { CommentItem } from "./CommentItem";
 
-export default function FeedPostCard() 
+export default function FeedPostCard({ post }: { post: Post }) {
+  const { data: session } = useSession();
+  const userId = session?.user?.id;
+  const isAuthor = userId === post.author?.id;
+  
+  const [commentContent, setCommentContent] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(post.content || "");
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  
 
+  const commentsList = post.comments || [];
+  const commentsCount = post.commentsCount !== undefined ? post.commentsCount : commentsList.length;
+  const recentLikes = post.recentLikes || post.likes || [];
+  
+  const [likesCount, setLikesCount] = useState(post.likesCount !== undefined ? post.likesCount : post.likes?.length || 0);
+  const initialReaction = post.userReaction !== undefined ? post.userReaction : post.likes?.find(like => like.userId === userId)?.reactionType || null;
+  const [userReaction, setUserReaction] = useState<string | null>(initialReaction);
+  
+  const [showAllComments, setShowAllComments] = useState(false);
+  const visibleComments = showAllComments ? commentsList : commentsList.slice(0, 2);
+  
+  useEffect(() => {
+    const currentReaction = post.userReaction !== undefined ? post.userReaction : post.likes?.find((l) => l.userId === userId)?.reactionType || null;
+    setUserReaction(currentReaction);
+    setLikesCount(post.likesCount !== undefined ? post.likesCount : post.likes?.length || 0);
+  }, [post.likes, post.likesCount, post.userReaction, userId]);
 
-{
+  const [likePost] = useLikePostMutation();
+  const [createComment, { isLoading: isSubmitting }] = useCreateCommentMutation();
+  const [updatePost] = useUpdatePostMutation();
+  const [deletePost] = useDeletePostMutation();
+
+  const handleTurnOnNotification = (e: React.MouseEvent) => {
+    e.preventDefault();
+    toast.success("Notifications turned on for this post!");
+  };
+
+  const handleHidePost = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    try {
+      await updatePost({ postId: post.id, visibility: 'PRIVATE' }).unwrap();
+      toast.success("Post hidden (set to private).");
+    } catch (error) {
+      toast.error("Failed to hide post.");
+    }
+  };
+
+  const handleDeletePost = async () => {
+    try {
+      await deletePost(post.id).unwrap();
+      toast.success("Post deleted successfully.");
+      setIsDeleteDialogOpen(false);
+    } catch (error) {
+      toast.error("Failed to delete post.");
+      setIsDeleteDialogOpen(false);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editContent.trim()) return;
+    try {
+      await updatePost({ postId: post.id, content: editContent }).unwrap();
+      setIsEditing(false);
+      toast.success("Post updated!");
+    } catch (error) {
+      toast.error("Failed to update post.");
+    }
+  };
+
+  const handleLike = async (reactionType: string = 'LIKE') => {
+    try {
+      const isRemoving = userReaction === reactionType;
+      const wasEmpty = !userReaction;
+      const optimisticReaction = isRemoving ? null : reactionType;
+      
+      setUserReaction(optimisticReaction);
+      setLikesCount((prev) => {
+        if (isRemoving) return prev - 1;
+        if (wasEmpty) return prev + 1;
+        return prev;
+      });
+      
+      await likePost({ postId: post.id, reactionType }).unwrap();
+    } catch (error) {
+      console.error("Failed to like post", error);
+    }
+  };
+
+  const handleComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!commentContent.trim()) return;
+    try {
+      await createComment({ postId: post.id, content: commentContent }).unwrap();
+      setCommentContent("");
+      setShowAllComments(true);
+    } catch (error) {
+      console.error("Failed to add comment", error);
+    }
+  };
   return (
     <div className="bg-white dark:bg-[#192D43] dark:text-white dark:border-[#384F68] rounded-[12px] py-6 mb-4 shadow-sm border border-gray-100">
       <div className="px-6">
@@ -32,18 +136,27 @@ export default function FeedPostCard()
             <div>
               <Link href="/profile" className="hover:underline">
                 <h4 className="m-0 text-[15px] font-semibold text-gray-900 dark:text-white leading-tight">
-                  Karim Saif
+                  {post.author?.firstName} {post.author?.lastName}
                 </h4>
               </Link>
 
-
               <p className="m-0 text-[13px] text-gray-500 dark:text-white/60 mt-1">
-                5 minute ago .{" "}
+                {post.createdAt ? formatDistanceToNow(new Date(post.createdAt), { addSuffix: true }) : "Just now"} .{" "}
                 <Link
                   href="#0"
-                  className="hover:underline text-gray-500 dark:text-white/60"
+                  className="hover:underline text-gray-500 dark:text-white/60 flex items-center gap-1 inline-flex"
                 >
-                  Public
+                  {post.visibility === 'PRIVATE' ? (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                      Private
+                    </>
+                  ) : (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                      Public
+                    </>
+                  )}
                 </Link>
               </p>
             </div>
@@ -102,6 +215,7 @@ export default function FeedPostCard()
                   <DropdownMenuItem className="p-0">
                     <Link
                       href="#0"
+                      onClick={handleTurnOnNotification}
                       className="flex items-center gap-3 p-4 hover:bg-gray-50 dark:hover:bg-[#192D43] transition-colors w-full cursor-pointer text-sm font-medium text-gray-700 dark:text-white/60 border-b border-gray-100 dark:border-[#384F68] last:border-none focus:bg-gray-50 dark:focus:bg-[#192D43] outline-none rounded-none"
                     >
                       <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 dark:bg-[rgba(24,144,255,0.1)] text-blue-600 dark:text-[#1890FF]">
@@ -124,155 +238,159 @@ export default function FeedPostCard()
                     </Link>
                   </DropdownMenuItem>
 
-
-                  <DropdownMenuItem className="p-0">
-                    <Link
-                      href="#0"
-                      className="flex items-center gap-3 p-4 hover:bg-gray-50 dark:hover:bg-[#192D43] transition-colors w-full cursor-pointer text-sm font-medium text-gray-700 dark:text-white/60 border-b border-gray-100 dark:border-[#384F68] last:border-none focus:bg-gray-50 dark:focus:bg-[#192D43] outline-none rounded-none"
-                    >
-                      <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 dark:bg-[rgba(24,144,255,0.1)] text-blue-600 dark:text-[#1890FF]">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="18"
-                          height="18"
-                          fill="none"
-                          viewBox="0 0 18 18"
+                  {isAuthor && (
+                    <>
+                      <DropdownMenuItem className="p-0">
+                        <Link
+                          href="#0"
+                          onClick={handleHidePost}
+                          className="flex items-center gap-3 p-4 hover:bg-gray-50 dark:hover:bg-[#192D43] transition-colors w-full cursor-pointer text-sm font-medium text-gray-700 dark:text-white/60 border-b border-gray-100 dark:border-[#384F68] last:border-none focus:bg-gray-50 dark:focus:bg-[#192D43] outline-none rounded-none"
                         >
-                          <path
-                            stroke="currentColor"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="1.2"
-                            d="M14.25 2.25H3.75a1.5 1.5 0 00-1.5 1.5v10.5a1.5 1.5 0 001.5 1.5h10.5a1.5 1.5 0 001.5-1.5V3.75a1.5 1.5 0 00-1.5-1.5zM6.75 6.75l4.5 4.5M11.25 6.75l-4.5 4.5"
-                          />
-                        </svg>
-                      </span>
-                      Hide
-                    </Link>
-                  </DropdownMenuItem>
+                          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 dark:bg-[rgba(24,144,255,0.1)] text-blue-600 dark:text-[#1890FF]">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="18"
+                              height="18"
+                              fill="none"
+                              viewBox="0 0 18 18"
+                            >
+                              <path
+                                stroke="currentColor"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth="1.2"
+                                d="M14.25 2.25H3.75a1.5 1.5 0 00-1.5 1.5v10.5a1.5 1.5 0 001.5 1.5h10.5a1.5 1.5 0 001.5-1.5V3.75a1.5 1.5 0 00-1.5-1.5zM6.75 6.75l4.5 4.5M11.25 6.75l-4.5 4.5"
+                              />
+                            </svg>
+                          </span>
+                          Hide Post
+                        </Link>
+                      </DropdownMenuItem>
 
-
-                  <DropdownMenuItem className="p-0">
-                    <Link
-                      href="#0"
-                      className="flex items-center gap-3 p-4 hover:bg-gray-50 dark:hover:bg-[#192D43] transition-colors w-full cursor-pointer text-sm font-medium text-gray-700 dark:text-white/60 border-b border-gray-100 dark:border-[#384F68] last:border-none focus:bg-gray-50 dark:focus:bg-[#192D43] outline-none rounded-none"
-                    >
-                      <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 dark:bg-[rgba(24,144,255,0.1)] text-blue-600 dark:text-[#1890FF]">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="18"
-                          height="18"
-                          fill="none"
-                          viewBox="0 0 18 18"
+                      <DropdownMenuItem className="p-0">
+                        <Link
+                          href="#0"
+                          onClick={(e) => { e.preventDefault(); setIsEditing(true); setEditContent(post.content || ""); }}
+                          className="flex items-center gap-3 p-4 hover:bg-gray-50 dark:hover:bg-[#192D43] transition-colors w-full cursor-pointer text-sm font-medium text-gray-700 dark:text-white/60 border-b border-gray-100 dark:border-[#384F68] last:border-none focus:bg-gray-50 dark:focus:bg-[#192D43] outline-none rounded-none"
                         >
-                          <path
-                            stroke="currentColor"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="1.2"
-                            d="M8.25 3H3a1.5 1.5 0 00-1.5 1.5V15A1.5 1.5 0 003 16.5h10.5A1.5 1.5 0 0015 15V9.75"
-                          />
-                          <path
-                            stroke="currentColor"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="1.2"
-                            d="M13.875 1.875a1.591 1.591 0 112.25 2.25L9 11.25 6 12l.75-3 7.125-7.125z"
-                          />
-                        </svg>
-                      </span>
-                      Edit Post
-                    </Link>
-                  </DropdownMenuItem>
+                          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 dark:bg-[rgba(24,144,255,0.1)] text-blue-600 dark:text-[#1890FF]">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="18"
+                              height="18"
+                              fill="none"
+                              viewBox="0 0 18 18"
+                            >
+                              <path
+                                stroke="currentColor"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth="1.2"
+                                d="M8.25 3H3a1.5 1.5 0 00-1.5 1.5V15A1.5 1.5 0 003 16.5h10.5A1.5 1.5 0 0015 15V9.75"
+                              />
+                              <path
+                                stroke="currentColor"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth="1.2"
+                                d="M13.875 1.875a1.591 1.591 0 112.25 2.25L9 11.25 6 12l.75-3 7.125-7.125z"
+                              />
+                            </svg>
+                          </span>
+                          Edit Post
+                        </Link>
+                      </DropdownMenuItem>
 
-
-                  <DropdownMenuItem className="p-0">
-                    <Link
-                      href="#0"
-                      className="flex items-center gap-3 p-4 hover:bg-gray-50 dark:hover:bg-[#192D43] transition-colors w-full cursor-pointer text-sm font-medium text-gray-700 dark:text-white/60 border-none focus:bg-gray-50 dark:focus:bg-[#192D43] outline-none rounded-none"
-                    >
-                      <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 dark:bg-[rgba(24,144,255,0.1)] text-blue-600 dark:text-[#1890FF]">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="18"
-                          height="18"
-                          fill="none"
-                          viewBox="0 0 18 18"
+                      <DropdownMenuItem className="p-0">
+                        <Link
+                          href="#0"
+                          onClick={(e) => { e.preventDefault(); setIsDeleteDialogOpen(true); }}
+                          className="flex items-center gap-3 p-4 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors w-full cursor-pointer text-sm font-medium text-red-600 dark:text-red-400 border-none focus:bg-red-50 dark:focus:bg-red-900/20 outline-none rounded-none"
                         >
-                          <path
-                            stroke="currentColor"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="1.2"
-                            d="M2.25 4.5h13.5M6 4.5V3a1.5 1.5 0 011.5-1.5h3A1.5 1.5 0 0112 3v1.5m2.25 0V15a1.5 1.5 0 01-1.5 1.5h-7.5a1.5 1.5 0 01-1.5-1.5V4.5h10.5zM7.5 8.25v4.5M10.5 8.25v4.5"
-                          />
-                        </svg>
-                      </span>
-                      Delete Post
-                    </Link>
-
-                    
-                  </DropdownMenuItem>
+                          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="18"
+                              height="18"
+                              fill="none"
+                              viewBox="0 0 18 18"
+                            >
+                              <path
+                                stroke="currentColor"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth="1.2"
+                                d="M2.25 4.5h13.5M6 4.5V3a1.5 1.5 0 011.5-1.5h3A1.5 1.5 0 0112 3v1.5m2.25 0V15a1.5 1.5 0 01-1.5 1.5h-7.5a1.5 1.5 0 01-1.5-1.5V4.5h10.5zM7.5 8.25v4.5M10.5 8.25v4.5"
+                              />
+                            </svg>
+                          </span>
+                          Delete Post
+                        </Link>
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </ul>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </div>
 
-        <h4 className="text-base font-medium text-gray-900 dark:text-white mb-3">
-          -Healthy Tracking App
-        </h4>
-        <div className="mb-4 rounded-xl overflow-hidden">
-          <Image
-            src="/assets/images/timeline_img.png"
-            alt=""
-            width={600}
-            height={400}
-            className="w-full h-auto object-cover block"
-          />
-        </div>
+        {isEditing ? (
+          <div className="mb-4 flex flex-col gap-2">
+            <textarea
+              className="w-full bg-gray-50 dark:bg-[#122031] text-gray-900 dark:text-white p-3 rounded-lg border border-gray-200 dark:border-[#384F68] focus:ring-1 focus:ring-blue-500 outline-none resize-none min-h-[100px]"
+              value={editContent}
+              onChange={(e) => setEditContent(e.target.value)}
+              placeholder="What's on your mind?"
+            />
+            <div className="flex justify-end gap-2">
+              <button 
+                onClick={() => { setIsEditing(false); setEditContent(post.content || ""); }}
+                className="px-4 py-1.5 rounded-md text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#192D43] transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSaveEdit}
+                className="px-4 py-1.5 rounded-md text-sm font-medium bg-[#1890FF] text-white hover:bg-blue-600 transition-colors"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        ) : (
+          <h4 className="text-base font-medium text-gray-900 dark:text-white mb-3 break-words whitespace-pre-wrap">
+            {post.content}
+          </h4>
+        )}
+        
+        {post.images && post.images.length > 0 && post.images[0] !== '' && (
+          <div className="mb-4 rounded-xl overflow-hidden">
+            <img
+              src={post.images[0]?.startsWith('/') ? `${process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? window.location.origin.replace('3000', '3001') : 'http://localhost:3001')}${post.images[0]}` : post.images[0]}
+              alt="Post image"
+              className="w-full h-auto object-cover block"
+            />
+          </div>
+        )}
 
         <div className="px-0 mb-[26px] flex justify-between items-center">
           <div className="flex items-center">
-            <div className="flex -space-x-[6px]">
-              <Image
-                src="/assets/images/react_img1.png"
-                alt="Image"
-                width={22}
-                height={22}
-                className="rounded-full border-[1.5px] border-white dark:border-[#192D43] relative z-[5]"
-              />
-              <Image
-                src="/assets/images/react_img2.png"
-                alt="Image"
-                width={22}
-                height={22}
-                className="rounded-full border-[1.5px] border-white dark:border-[#192D43] relative z-[4]"
-              />
-              <Image
-                src="/assets/images/react_img3.png"
-                alt="Image"
-                width={22}
-                height={22}
-                className="rounded-full border-[1.5px] border-white dark:border-[#192D43] relative z-[3] hidden sm:block"
-              />
-              <Image
-                src="/assets/images/react_img4.png"
-                alt="Image"
-                width={22}
-                height={22}
-                className="rounded-full border-[1.5px] border-white dark:border-[#192D43] relative z-[2] hidden sm:block"
-              />
-              <Image
-                src="/assets/images/react_img5.png"
-                alt="Image"
-                width={22}
-                height={22}
-                className="rounded-full border-[1.5px] border-white dark:border-[#192D43] relative z-[1] hidden sm:block"
-              />
-            </div>
+            {likesCount > 0 && (
+              <div className="flex -space-x-[6px]">
+                {recentLikes.slice(0, 5).map((like, i) => (
+                  <div
+                    key={like.id}
+                    className={`rounded-full border-[1.5px] border-white dark:border-[#192D43] relative z-[${5 - i}] flex items-center justify-center w-[22px] h-[22px] bg-blue-500 text-white text-[10px] font-bold`}
+                    title={like.user ? `${like.user.firstName} ${like.user.lastName}` : "User"}
+                  >
+                    {like.user ? like.user.firstName.charAt(0).toUpperCase() : "U"}
+                  </div>
+                ))}
+              </div>
+            )}
             <p className="text-[15px] text-[#666666] dark:text-white/60 ml-[6px] font-normal leading-none m-0 pt-[2px]">
-              9+
+              {likesCount}
             </p>
           </div>
           <div className="flex gap-4 text-[13px] text-[#666666] dark:text-white/60 m-0">
@@ -281,45 +399,50 @@ export default function FeedPostCard()
                 href="#0"
                 className="hover:underline text-[#666666] dark:text-white/60"
               >
-                <span>12</span> Comment
+                <span>{commentsCount}</span> Comment
               </Link>
             </p>
             <p className="m-0 hover:underline cursor-pointer text-[#666666] dark:text-white/60">
-              <span>122</span> Share
+              <span>0</span> Share
             </p>
           </div>
         </div>
 
         <div className="flex items-center justify-between mb-4 bg-[#FBFCFD] dark:bg-[#122031] p-2 rounded-[8px]">
-          <button className="flex items-center justify-center py-[9px] px-2 rounded-md bg-[#F2F3F5] dark:bg-[#1C334A] text-[14px] font-normal text-[#1890FF] hover:bg-[#e8e9eb] dark:hover:bg-[rgba(28,51,74,0.8)] transition-colors flex-1 mx-[2px] border-none cursor-pointer">
-            <span className="flex items-center gap-[6px] pointer-events-none">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="19"
-                height="19"
-                fill="none"
-                viewBox="0 0 19 19"
-              >
-                <path
-                  fill="#FFCC4D"
-                  d="M9.5 19a9.5 9.5 0 100-19 9.5 9.5 0 000 19z"
-                />
-                <path
-                  fill="#664500"
-                  d="M9.5 11.083c-1.912 0-3.181-.222-4.75-.527-.358-.07-1.056 0-1.056 1.055 0 2.111 2.425 4.75 5.806 4.75 3.38 0 5.805-2.639 5.805-4.75 0-1.055-.697-1.125-1.055-1.055-1.57.305-2.838.527-4.75.527z"
-                />
-                <path
-                  fill="#fff"
-                  d="M4.75 11.611s1.583.528 4.75.528 4.75-.528 4.75-.528-1.056 2.111-4.75 2.111-4.75-2.11-4.75-2.11z"
-                />
-                <path
-                  fill="#664500"
-                  d="M6.333 8.972c.729 0 1.32-.827 1.32-1.847s-.591-1.847-1.32-1.847c-.729 0-1.32.827-1.32 1.847s.591 1.847 1.32 1.847zM12.667 8.972c.729 0 1.32-.827 1.32-1.847s-.591-1.847-1.32-1.847c-.729 0-1.32.827-1.32 1.847s.591 1.847 1.32 1.847z"
-                />
-              </svg>
-              Haha
-            </span>
-          </button>
+          <div className="relative group flex-1 flex mx-[2px]">
+            {}
+            <div className="absolute bottom-full left-0 pb-2 hidden group-hover:flex z-50">
+              <div className="flex bg-white dark:bg-[#192D43] shadow-[0_0_10px_rgba(0,0,0,0.1)] rounded-full px-3 py-2 gap-3 border border-gray-100 dark:border-[#384F68]">
+                <button type="button" onClick={() => handleLike('LIKE')} className="hover:scale-125 transition-transform text-2xl px-1 border-none bg-transparent cursor-pointer" title="Like">👍</button>
+                <button type="button" onClick={() => handleLike('LOVE')} className="hover:scale-125 transition-transform text-2xl px-1 border-none bg-transparent cursor-pointer" title="Love">❤️</button>
+                <button type="button" onClick={() => handleLike('HAHA')} className="hover:scale-125 transition-transform text-2xl px-1 border-none bg-transparent cursor-pointer" title="Haha">😂</button>
+              </div>
+            </div>
+            
+            <button onClick={() => handleLike(userReaction || 'LIKE')} className={`flex items-center justify-center py-[9px] px-2 rounded-md ${userReaction ? 'bg-blue-50 dark:bg-[#1C334A] text-blue-600 dark:text-[#1890FF]' : 'bg-[#F2F3F5] dark:bg-[#1C334A] text-[#1890FF]'} text-[14px] font-normal hover:bg-[#e8e9eb] dark:hover:bg-[rgba(28,51,74,0.8)] transition-colors flex-1 border-none cursor-pointer w-full`}>
+              <span className="flex items-center gap-[6px] pointer-events-none">
+                {userReaction === 'LOVE' ? (
+                  <span className="text-lg">❤️</span>
+                ) : userReaction === 'HAHA' ? (
+                  <span className="text-lg">😂</span>
+                ) : (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="19"
+                    height="19"
+                    fill="none"
+                    viewBox="0 0 19 19"
+                  >
+                    <path fill="#FFCC4D" d="M9.5 19a9.5 9.5 0 100-19 9.5 9.5 0 000 19z" />
+                    <path fill="#664500" d="M9.5 11.083c-1.912 0-3.181-.222-4.75-.527-.358-.07-1.056 0-1.056 1.055 0 2.111 2.425 4.75 5.806 4.75 3.38 0 5.805-2.639 5.805-4.75 0-1.055-.697-1.125-1.055-1.055-1.57.305-2.838.527-4.75.527z" />
+                    <path fill="#fff" d="M4.75 11.611s1.583.528 4.75.528 4.75-.528 4.75-.528-1.056 2.111-4.75 2.111-4.75-2.11-4.75-2.11z" />
+                    <path fill="#664500" d="M6.333 8.972c.729 0 1.32-.827 1.32-1.847s-.591-1.847-1.32-1.847c-.729 0-1.32.827-1.32 1.847s.591 1.847 1.32 1.847zM12.667 8.972c.729 0 1.32-.827 1.32-1.847s-.591-1.847-1.32-1.847c-.729 0-1.32.827-1.32 1.847s.591 1.847 1.32 1.847z" />
+                  </svg>
+                )}
+                {userReaction === 'LOVE' ? 'Loved' : userReaction === 'HAHA' ? 'Haha' : userReaction ? 'Liked' : 'Like'}
+              </span>
+            </button>
+          </div>
           <button className="flex items-center justify-center py-[9px] px-2 rounded-md bg-transparent text-[14px] font-normal text-[#666666] dark:text-white/60 hover:bg-[#F2F3F5] dark:hover:bg-[#1C334A] hover:text-gray-900 dark:hover:text-white transition-colors flex-1 mx-[2px] border-none cursor-pointer">
             <span className="flex items-center gap-[6px] pointer-events-none">
               <svg
@@ -365,7 +488,7 @@ export default function FeedPostCard()
 
         <div className="mb-4">
           <div className="bg-[#F6F6F6] dark:bg-[#122031] rounded-[18px] py-1 px-[9px] mb-4">
-            <form className="flex items-center justify-between flex-wrap w-full relative">
+            <form onSubmit={handleComment} className="flex items-center justify-between flex-wrap w-full relative">
               <div className="flex items-center w-full flex-[1_1] min-w-0 pr-20">
                 <div className="shrink-0">
                   <Image
@@ -381,13 +504,23 @@ export default function FeedPostCard()
                     className="bg-transparent w-full h-[40px] border-none p-2 text-[14px] resize-none focus:outline-none focus:ring-0 m-0 text-[#666] dark:text-white"
                     placeholder="Write a comment"
                     id="floatingTextarea2"
+                    value={commentContent}
+                    onChange={(e) => setCommentContent(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleComment(e as unknown as React.FormEvent);
+                      }
+                    }}
                   ></textarea>
                 </div>
               </div>
               <div className="flex gap-4 absolute right-3 top-1/2 -translate-y-1/2">
                 <button
                   type="button"
-                  className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors bg-transparent border-none cursor-pointer p-0 flex items-center justify-center"
+                  onClick={handleComment}
+                  disabled={isSubmitting}
+                  className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors bg-transparent border-none cursor-pointer p-0 flex items-center justify-center disabled:opacity-50"
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -430,118 +563,48 @@ export default function FeedPostCard()
           </div>
 
           <div className="mt-6">
-            <div className="mb-3">
-              <button
-                type="button"
-                className="text-[14px] font-semibold text-[#1890FF] hover:underline bg-transparent border-none cursor-pointer p-0"
+
+
+            {visibleComments.map((comment) => (
+              <CommentItem key={comment.id} comment={comment} postId={post.id} userId={userId} />
+            ))}
+            {commentsList.length > 2 && (
+              <button 
+                onClick={() => setShowAllComments(!showAllComments)} 
+                className="text-[13px] font-semibold text-[#666] dark:text-white/60 hover:underline mt-2 bg-transparent border-none cursor-pointer p-0"
               >
-                View 4 previous comments
+                {showAllComments ? "Hide comments" : `View ${commentsCount - 2} more comments`}
               </button>
-            </div>
-
-            <div className="flex gap-3 mb-4">
-              <div className="shrink-0 mt-1">
-                <Link href="/profile">
-                  <Image
-                    src="/assets/images/txt_img.png"
-                    alt=""
-                    width={32}
-                    height={32}
-                    className="rounded-full object-cover"
-                  />
-                </Link>
-              </div>
-              <div className="w-full">
-                <div className="bg-[#F6F6F6] dark:bg-[#122031] rounded-[18px] p-3 w-full max-w-max relative mb-[18px]">
-                  <div>
-                    <div>
-                      <Link href="/profile" className="hover:underline">
-                        <h4 className="text-[14px] font-semibold text-[#112032] dark:text-white m-0">
-                          Radovan SkillArena
-                        </h4>
-                      </Link>
-                    </div>
-                  </div>
-                  <div className="mt-1">
-                    <p className="text-[13px] text-[#666] dark:text-white/60 m-0 leading-[1.6]">
-                      <span>
-                        It is a long established fact that a reader will be
-                        distracted by the readable content of a page when
-                        looking at its layout.{" "}
-                      </span>
-                    </p>
-                  </div>
-
-                  <div className="absolute -bottom-[14px] right-2 flex items-center bg-white dark:bg-[#192D43] dark:text-white dark:border-[#384F68] rounded-full shadow-[0px_4px_14px_rgba(0,0,0,0.06)] p-[3px] gap-1 z-10 min-w-[45px] border border-gray-100 dark:border-transparent">
-                    <div className="flex -space-x-[3px]">
-                      <span className="bg-[#1890FF] rounded-full w-[16px] h-[16px] flex items-center justify-center text-white relative z-20 border-[1.5px] border-white dark:border-[#192D43]">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="8"
-                          height="8"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>
-                        </svg>
-                      </span>
-                      <span className="bg-[#E53F71] rounded-full w-[16px] h-[16px] flex items-center justify-center text-white relative z-10 border-[1.5px] border-white dark:border-[#192D43]">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="8"
-                          height="8"
-                          viewBox="0 0 24 24"
-                          fill="currentColor"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-                        </svg>
-                      </span>
-                    </div>
-                    <span className="text-[12px] font-normal text-[#666] dark:text-white/60 leading-none pl-1">
-                      198
-                    </span>
-                  </div>
-                </div>
-
-                <div className="pl-2">
-                  <div>
-                    <ul className="flex items-center gap-[12px] list-none p-0 m-0">
-                      <li>
-                        <span className="text-[12px] font-semibold text-[#666] dark:text-white/60 hover:underline cursor-pointer">
-                          Like.
-                        </span>
-                      </li>
-                      <li>
-                        <span className="text-[12px] font-semibold text-[#666] dark:text-white/60 hover:underline cursor-pointer">
-                          Reply.
-                        </span>
-                      </li>
-                      <li>
-                        <span className="text-[12px] font-semibold text-[#666] dark:text-white/60 hover:underline cursor-pointer">
-                          Share
-                        </span>
-                      </li>
-                      <li>
-                        <span className="font-normal text-[#999] text-[12px]">
-                          .21m
-                        </span>
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
+      
+      {/* Delete Confirmation Modal */}
+      {isDeleteDialogOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-[#192D43] rounded-xl shadow-lg p-6 max-w-sm w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Delete Post</h3>
+            <p className="text-gray-500 dark:text-white/60 text-sm mb-6">
+              Are you sure you want to delete this post? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setIsDeleteDialogOpen(false)}
+                className="px-4 py-2 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#122031] transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeletePost}
+                className="px-4 py-2 rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-colors cursor-pointer"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

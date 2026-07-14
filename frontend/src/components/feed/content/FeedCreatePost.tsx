@@ -1,9 +1,53 @@
+import { useState, useRef } from "react";
 import Image from "next/image";
+import Link from "next/link";
+import { useCreatePostMutation } from "@/lib/redux/apiSlice";
+import { useSession } from "next-auth/react";
 
-export default function FeedCreatePost() 
+export default function FeedCreatePost() {
+  const { data: session } = useSession();
+  const [content, setContent] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [visibility, setVisibility] = useState<"PUBLIC" | "PRIVATE">("PUBLIC");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const firstName = session?.user?.firstName || "";
+  const [createPost, { isLoading }] = useCreatePostMutation();
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => 
+    
+  {
+    if (e.target.files && e.target.files.length > 0) {
+      setSelectedFile(e.target.files[0]);
+    }
+  };
 
-{
+  const handleSubmit = async () => {
+    if (!content.trim() && !selectedFile) return;
+    try {
+      const formData = new FormData();
+      if (content.trim()) {
+        formData.append("content", content);
+      } else {
+        formData.append("content", " "); 
+      }
+      
+      if (selectedFile) {
+        formData.append("images", selectedFile);
+      }
+      formData.append("visibility", visibility);
+      
+      await createPost(formData).unwrap();
+      setContent("");
+      setSelectedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    } catch (error) {
+      console.error("Failed to create post", error);
+    }
+  };
+
   return (
     <div className="bg-white dark:bg-[#192D43] dark:text-white dark:border-[#384F68] rounded-[6px] p-6 mb-4 shadow-sm border border-gray-100">
       <div className="flex items-start">
@@ -21,9 +65,28 @@ export default function FeedCreatePost()
         <div className="w-full relative">
           <textarea
             className="w-full h-[88px] border-none px-2 py-0 bg-transparent resize-none focus:outline-none focus:ring-0 peer placeholder-transparent text-[#333] dark:text-white"
-            placeholder="Write something ..."
+            placeholder={`Write something${firstName ? ', ' + firstName : ''} ...`}
             id="floatingTextarea"
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
           ></textarea>
+
+          {selectedFile && (
+            <div className="px-2 mb-2 relative inline-block">
+              <img 
+                src={URL.createObjectURL(selectedFile)} 
+                alt="Preview" 
+                className="max-h-[100px] rounded-lg object-contain" 
+              />
+              <button 
+                type="button" 
+                onClick={() => setSelectedFile(null)} 
+                className="absolute top-1 right-1 bg-black/50 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-black/70"
+              >
+                &times;
+              </button>
+            </div>
+          )}
 
 
           <label
@@ -51,8 +114,10 @@ export default function FeedCreatePost()
       <div className="hidden md:flex items-center justify-between px-[24px] bg-[rgba(24,144,255,0.05)] rounded-b-[6px] h-[64px] -mx-6 -mb-6 mt-4">
         <div className="flex h-full py-4">
           <div className="flex items-center pr-5 border-r border-gray-200 dark:border-[#384F68]">
+            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
             <button
               type="button"
+              onClick={() => fileInputRef.current?.click()}
               className="flex items-center gap-[8px] text-[14px] font-normal text-[#666] dark:text-white/60 hover:text-[#333] dark:hover:text-white transition-colors bg-transparent border-none cursor-pointer"
             >
               <span className="text-[#F57F26]">
@@ -123,34 +188,23 @@ export default function FeedCreatePost()
 
 
           <div className="flex items-center pl-5">
-            <button
-              type="button"
-              className="flex items-center gap-[8px] text-[14px] font-normal text-[#666] dark:text-white/60 hover:text-[#333] dark:hover:text-white transition-colors bg-transparent border-none cursor-pointer"
+            <select 
+              value={visibility} 
+              onChange={(e) => setVisibility(e.target.value as "PUBLIC" | "PRIVATE")}
+              className="bg-transparent text-[14px] font-normal text-[#666] dark:text-white/60 hover:text-[#333] dark:hover:text-white border-none outline-none cursor-pointer focus:ring-0"
             >
-              <span className="text-[#7000FF]">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="18"
-                  height="20"
-                  fill="none"
-                  viewBox="0 0 18 20"
-                >
-                  <path
-                    fill="currentColor"
-                    d="M12.49 0c2.92 0 4.665 1.92 4.693 5.132v9.659c0 3.257-1.75 5.209-4.693 5.209H5.434c-.377 0-.734-.032-1.07-.095l-.2-.041C2 19.371.74 17.555.74 14.791V5.209c0-.334.019-.654.055-.96C1.114 1.564 2.799 0 5.434 0h7.056zm-.008 1.457H5.434c-2.244 0-3.381 1.263-3.381 3.752v9.582c0 2.489 1.137 3.752 3.38 3.752h7.049c2.242 0 3.372-1.263 3.372-3.752V5.209c0-2.489-1.13-3.752-3.372-3.752zm-.239 12.053c.36 0 .652.324.652.724 0 .4-.292.724-.652.724H5.656c-.36 0-.652-.324-.652-.724 0-.4.293-.724.652-.724h6.587zm0-4.239a.643.643 0 01.632.339.806.806 0 010 .78.643.643 0 01-.632.339H5.656c-.334-.042-.587-.355-.587-.729s.253-.688.587-.729h6.587zM8.17 5.042c.335.041.588.355.588.729 0 .373-.253.687-.588.728H5.665c-.336-.041-.589-.355-.589-.728 0-.374.253-.688.589-.729H8.17z"
-                  />
-                </svg>
-              </span>
-              Article
-            </button>
+              <option value="PUBLIC" className="text-gray-900 bg-white dark:bg-[#122031] dark:text-white">🌍 Public</option>
+              <option value="PRIVATE" className="text-gray-900 bg-white dark:bg-[#122031] dark:text-white">🔒 Private</option>
+            </select>
           </div>
         </div>
 
 
-        <div className="flex items-center">
-          <button
+        <div className="flex items-center">          <button
             type="button"
-            className="flex items-center gap-[6px] bg-[#1890FF] hover:bg-blue-700 text-white font-medium py-[7px] px-6 rounded-[6px] transition-colors border-none cursor-pointer"
+            onClick={handleSubmit}
+            disabled={isLoading || (!content.trim() && !selectedFile)}
+            className="flex items-center gap-[6px] bg-[#1890FF] hover:bg-blue-700 text-white font-medium py-[7px] px-6 rounded-[6px] transition-colors border-none cursor-pointer disabled:opacity-70"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -175,8 +229,8 @@ export default function FeedCreatePost()
 
       <div className="md:hidden flex flex-col pt-4 pb-2">
         <div className="flex items-center justify-between border-t border-gray-100 dark:border-[#384F68] pt-4">
-          <div className="flex gap-4">
-            <button type="button" className="text-[#F57F26]">
+          <div className="flex gap-4 items-center">
+            <button type="button" onClick={() => fileInputRef.current?.click()} className="text-[#F57F26]">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 width="20"
@@ -222,12 +276,23 @@ export default function FeedCreatePost()
             </button>
 
 
+            <select 
+              value={visibility} 
+              onChange={(e) => setVisibility(e.target.value as "PUBLIC" | "PRIVATE")}
+              className="bg-transparent text-[13px] font-normal text-[#666] dark:text-white/60 hover:text-[#333] dark:hover:text-white border-none px-1 outline-none cursor-pointer focus:ring-0"
+            >
+              <option value="PUBLIC" className="text-gray-900 bg-white dark:bg-[#122031] dark:text-white">🌍 Public</option>
+              <option value="PRIVATE" className="text-gray-900 bg-white dark:bg-[#122031] dark:text-white">🔒 Private</option>
+            </select>
           </div>
+          
+          <div className="flex items-center">
 
-
-   <button
-            type="button"
-            className="flex items-center gap-2 bg-[#1890FF] hover:bg-blue-700 text-white font-medium py-[6px] px-[16px] rounded-[6px] transition-colors text-[14px]"
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={isLoading || (!content.trim() && !selectedFile)}
+            className="flex items-center gap-2 bg-[#1890FF] hover:bg-blue-700 text-white font-medium py-[6px] px-[16px] rounded-[6px] transition-colors text-[14px] disabled:opacity-70"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -251,5 +316,6 @@ export default function FeedCreatePost()
         </div>
       </div>
     </div>
+  </div>
   );
 }

@@ -7,10 +7,23 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import NotificationItem from "./NotificationItem";
+import { useGetNotificationsQuery, useMarkNotificationReadMutation, useMarkAllNotificationsReadMutation } from "@/lib/redux/apiSlice";
+import { formatDistanceToNow } from "date-fns";
+import { useState } from "react";
 
-export default function NotificationDropdown() 
+export default function NotificationDropdown() {
+  const { data: notifications = [] } = useGetNotificationsQuery(undefined, { pollingInterval: 5000 });
+  const [markAsRead] = useMarkNotificationReadMutation();
+  const [markAllAsRead] = useMarkAllNotificationsReadMutation();
+  const [filter, setFilter] = useState<"All" | "Unread">("All");
 
-{
+  console.log("Current notifications:", notifications);
+
+  const unreadCount = notifications.filter((n: any) => !n.isRead).length;
+  
+  const displayedNotifications = filter === "All" 
+    ? notifications 
+    : notifications.filter((n: any) => !n.isRead);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="relative block px-[16px] pt-[22px] pb-[26px] cursor-pointer group w-fit outline-none border-none bg-transparent">
@@ -28,9 +41,11 @@ export default function NotificationDropdown()
             clipRule="evenodd"
           />
         </svg>
-        <span className="absolute top-[16px] right-[10px] bg-[#1890FF] border border-white rounded-[9px] min-w-[17px] h-[17px] flex items-center justify-center text-[11px] font-normal leading-[1.4] text-white p-[3px]">
-          6
-        </span>
+        {unreadCount > 0 && (
+          <span className="absolute top-[16px] right-[10px] bg-[#1890FF] border border-white rounded-[9px] min-w-[17px] h-[17px] flex items-center justify-center text-[11px] font-normal leading-[1.4] text-white p-[3px]">
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
+        )}
         <div className="absolute bottom-0 left-0 w-full h-0 group-hover:h-[2px] bg-[#00ACFF] transition-all" />
       </DropdownMenuTrigger>
 
@@ -48,6 +63,8 @@ export default function NotificationDropdown()
           <div className="relative">
             <button
               type="button"
+              onClick={() => markAllAsRead(undefined)}
+              title="Mark all as read"
               className="bg-transparent border-none outline-none text-[#C4C4C4] hover:text-[#1890FF] transition-colors cursor-pointer"
             >
               <svg
@@ -67,54 +84,44 @@ export default function NotificationDropdown()
 
         <ScrollArea className="max-h-[400px]">
           <div className="flex gap-2 p-4">
-            <button className="bg-blue-100 dark:bg-[rgba(24,144,255,0.1)] text-blue-600 dark:text-[#1890FF] px-4 py-1.5 rounded-full text-sm font-medium border-none cursor-pointer">
+            <button 
+              onClick={() => setFilter("All")}
+              className={`${filter === "All" ? "bg-blue-100 dark:bg-[rgba(24,144,255,0.1)] text-blue-600 dark:text-[#1890FF]" : "bg-gray-100 dark:bg-[#192D43] text-gray-600 dark:text-white/60 hover:bg-gray-200 dark:hover:bg-[#1F3A53]"} px-4 py-1.5 rounded-full text-sm font-medium border-none cursor-pointer transition-colors`}
+            >
               All
             </button>
-            <button className="bg-gray-100 dark:bg-[#192D43] text-gray-600 dark:text-white/60 px-4 py-1.5 rounded-full text-sm font-medium border-none hover:bg-gray-200 dark:hover:bg-[#1F3A53] transition-colors cursor-pointer">
+            <button 
+              onClick={() => setFilter("Unread")}
+              className={`${filter === "Unread" ? "bg-blue-100 dark:bg-[rgba(24,144,255,0.1)] text-blue-600 dark:text-[#1890FF]" : "bg-gray-100 dark:bg-[#192D43] text-gray-600 dark:text-white/60 hover:bg-gray-200 dark:hover:bg-[#1F3A53]"} px-4 py-1.5 rounded-full text-sm font-medium border-none cursor-pointer transition-colors`}
+            >
               Unread
             </button>
           </div>
           <div className="flex flex-col">
-            <NotificationItem
-              imageSrc="/assets/images/friend-req.png"
-              imageAlt="Steve Jobs"
-              fallbackText="SJ"
-              timeText="42 minutes ago"
-              isUnread={true}
-            >
-              <span className="font-semibold text-gray-900 dark:text-white mr-1">
-                Steve Jobs
-              </span>
-              posted a link in your timeline.
-            </NotificationItem>
-
-            <NotificationItem
-              imageSrc="/assets/images/profile-1.png"
-              imageAlt="Admin"
-              fallbackText="A"
-              timeText="42 minutes ago"
-            >
-              An admin changed the name of the group
-              <span className="font-semibold text-gray-900 dark:text-white mx-1">
-                Freelacer usa
-              </span>
-              to
-              <span className="font-semibold text-gray-900 dark:text-white ml-1">
-                Freelacer usa
-              </span>
-            </NotificationItem>
-
-            <NotificationItem
-              imageSrc="/assets/images/friend-req.png"
-              imageAlt="Steve Jobs"
-              fallbackText="SJ"
-              timeText="42 minutes ago"
-            >
-              <span className="font-semibold text-gray-900 dark:text-white mr-1">
-                Steve Jobs
-              </span>
-              posted a link in your timeline.
-            </NotificationItem>
+            {displayedNotifications.length === 0 ? (
+              <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+                No notifications to show.
+              </div>
+            ) : (
+              displayedNotifications.map((notification: any) => (
+                <NotificationItem
+                  key={notification.id}
+                  imageSrc={notification.sender?.avatarUrl || "/assets/images/default-avatar.png"}
+                  imageAlt={notification.sender?.firstName || "User"}
+                  fallbackText={notification.sender?.firstName?.[0] || "U"}
+                  timeText={formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
+                  isUnread={!notification.isRead}
+                  onClick={() => !notification.isRead && markAsRead(notification.id)}
+                >
+                  <span className="font-semibold text-gray-900 dark:text-white mr-1">
+                    {notification.sender?.firstName} {notification.sender?.lastName}
+                  </span>
+                  {notification.type === 'COMMENT' && "commented on your post."}
+                  {notification.type === 'REPLY' && "replied to your comment."}
+                  {notification.type === 'LIKE' && "liked your post."}
+                </NotificationItem>
+              ))
+            )}
           </div>
         </ScrollArea>
         
