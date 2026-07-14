@@ -6,6 +6,9 @@ import { Repository } from 'typeorm';
 import { Like } from './like.entity';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../notifications/notification.entity';
+import { Post as PostEntity } from '../posts/post.entity';
 
 @Processor('likes-queue')
 export class LikesProcessor extends WorkerHost 
@@ -17,6 +20,9 @@ export class LikesProcessor extends WorkerHost
   constructor(
     @InjectRepository(Like)
     private likesRepository: Repository<Like>,
+    @InjectRepository(PostEntity)
+    private postsRepository: Repository<PostEntity>,
+    private notificationsService: NotificationsService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {
     super();
@@ -73,6 +79,16 @@ export class LikesProcessor extends WorkerHost
         await this.likesRepository.save(newLike);
         this.logger.log(`Like added: User ${userId} for Post ${postId} with reaction ${reactionType}`);
         changed = true;
+
+        const post = await this.postsRepository.findOne({ where: { id: postId } });
+        if (post && post.authorId !== userId) {
+          await this.notificationsService.createNotification(
+            post.authorId,
+            userId,
+            NotificationType.LIKE,
+            postId,
+          );
+        }
       }
 
 

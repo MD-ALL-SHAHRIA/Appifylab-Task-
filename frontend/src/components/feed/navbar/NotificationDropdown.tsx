@@ -118,7 +118,7 @@ export default function NotificationDropdown() {
                   </span>
                   {notification.type === 'COMMENT' && "commented on your post."}
                   {notification.type === 'REPLY' && "replied to your comment."}
-                  {notification.type === 'LIKE' && "liked your post."}
+                  {notification.type === 'LIKE' && "reacted to your post."}
                 </NotificationItem>
               ))
             )}
