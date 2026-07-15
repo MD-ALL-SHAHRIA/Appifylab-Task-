@@ -19,6 +19,14 @@ This application isn't just a basic implementation of requirements—it is engin
 
 ---
 
+## 📦 Deliverables & Live Links
+
+* 🌍 **Live Frontend (Vercel):** [https://appifylab-task-eta.vercel.app](https://appifylab-task-eta.vercel.app)
+* ⚙️ **Live Backend API (Railway):** [https://appifylab-task-production.up.railway.app](https://appifylab-task-production.up.railway.app)
+* 💻 **GitHub Repository:** Provided via assignment submission.
+
+---
+
 ## 🛠️ Technology Stack & Tooling
 
 ### Frontend Architecture
@@ -46,6 +54,7 @@ This application isn't just a basic implementation of requirements—it is engin
 | :--- | :--- |
 | **Cloudinary CDN** | Offloads heavy image streaming from the API servers, ensuring infinite horizontal scaling. |
 | **Docker & Docker Compose** | Fully containerized databases (Postgres & Redis) to ensure perfect parity between development, staging, and production. |
+| **NeonDB & Upstash** | Cloud-native serverless PostgreSQL and Redis used for live production environments. |
 
 ---
 
@@ -66,6 +75,7 @@ This application isn't just a basic implementation of requirements—it is engin
 * **Multi-Tiered Comments:** Fully threaded comment and reply system engineered directly into the data model.
 * **Comprehensive Like System:** Users can like/unlike posts, comments, and replies in real-time.
 * **Reaction Transparency:** The UI dynamically displays the exact users who have recently liked any specific post or comment via optimized SQL Joins.
+* **Real-time Notifications:** The system detects likes, loves, and comments in the background and pushes real-time, auto-polling notifications to the original author within seconds.
 
 ---
 
@@ -74,7 +84,7 @@ This application isn't just a basic implementation of requirements—it is engin
 To ensure this application meets absolute modern production standards, several major systems were developed beyond the initial brief:
 
 1. **🚀 Redis Caching & BullMQ Processors**
-   * *Why?* Reading the feed from a SQL database for millions of users causes bottlenecking. Redis caches feed queries, and `BullMQ` offloads heavy operations (like massive like-counts) from the main Postgres instance.
+   * *Why?* Reading the feed from a SQL database for millions of users causes bottlenecking. Redis caches feed queries, and `BullMQ` offloads heavy operations (like massive like-counts and dispatching notifications) from the main Postgres instance.
 2. **🐳 Complete Dockerization**
    * *Why?* "It works on my machine" is an unacceptable excuse in production. The entire backend dependency layer (Postgres + Redis) is completely containerized via `docker-compose`.
 3. **☁️ Cloudinary CDN Integration**
@@ -97,11 +107,37 @@ If this system suddenly received **1 million users**, the architecture is ready:
 
 ---
 
-## 📦 Deliverables & Links
+## 🔑 Environment Variables Configuration
 
-* 🎥 **Video Walkthrough:** `[INSERT YOUTUBE LINK HERE]`
-* 🌍 **Live Deployment:** `[INSERT LIVE URL HERE]`
-* 💻 **GitHub Repository:** Provided via assignment submission.
+If you would like to run this fully production-ready application locally, here are the exact environment variables used in the system.
+
+### Frontend (`frontend/.env.local`)
+```env
+NEXT_PUBLIC_API_URL=https://appifylab-task-production.up.railway.app
+NEXTAUTH_URL=https://appifylab-task-eta.vercel.app
+NEXTAUTH_SECRET=jodi_tike_jai_office_a_sobai-k-treat-dibo
+```
+
+### Backend (`backend/.env`)
+```env
+# Database (Neon Serverless Postgres)
+POSTGRES_HOST=ep-shy-paper-azsydo1o-pooler.c-3.ap-southeast-1.aws.neon.tech
+POSTGRES_PORT=5432
+POSTGRES_USER=neondb_owner
+POSTGRES_PASSWORD=npg_3ly0xqzVSINf
+POSTGRES_DB=neondb
+
+# Security
+JWT_SECRET=jodi_tike_jai_office_a_sobai-k-treat-dibo
+
+# Cache & Message Queue (Upstash Redis)
+REDIS_HOST=primary-imp-129000.upstash.io
+REDIS_PORT=6379
+REDIS_PASSWORD=gQAAAAAAAffoAAIgcDE5ZDNlYjAyMjAwMmY0NGVlOTMwMGY2ZTAyZTc2MzZlZg
+
+# Media Storage (Cloudinary CDN)
+CLOUDINARY_URL=cloudinary://935837776183527:xRzKhYX8VEaH60qG-g3AstyOA-M@doymqkkes
+```
 
 ---
 
@@ -109,24 +145,18 @@ If this system suddenly received **1 million users**, the architecture is ready:
 
 ```bash
 # 1. Clone the repository
-git clone <your-repo-url>
+git clone https://github.com/MD-ALL-SHAHRIA/Appifylab-Task-.git
 cd appifylab-fullstack-assignment
 
-# 2. Start the Dockerized Infrastructure (Postgres & Redis)
+# 2. Start the Backend API
 cd backend
-docker-compose up -d
-
-# 3. Setup environment variables
-# (Ensure your Postgres DB, Redis port, and Cloudinary keys are in backend/.env)
-
-# 4. Start the Backend API
 npm install
 npm run start:dev
 
-# 5. Start the Frontend Client
+# 3. Start the Frontend Client
 cd ../frontend
 npm install
 npm run dev
 ```
 
-> **Thank you Appifylab for this Amazing Task i think next we will see in the office Desk and have a take coffee or tea with your team member .** 🚀
+> **Thank you Appifylab for this Amazing Task! I look forward to joining the team at the office desk and having coffee or tea with the team members.** 🚀
